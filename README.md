@@ -10,3 +10,4 @@ Innhold:
 •	Bruk av Klassdatabasen for å validere kategoriske variabler med R-pakken klassR
 •	HB-metoden, kvartilmetoden, tusenfeil, regresjon og innflytelse med R-pakken Kostra 
 
+Her er en test
