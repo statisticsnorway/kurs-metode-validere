@@ -1,3 +1,4 @@
+#rm(list=ls())
 
 ######## Validering ###########################
 
@@ -82,39 +83,48 @@ cf<-confront(kirkedata,regler,key="region")
 summary(cf)
 plot(cf)
 
-##################### Kontroll metoder ##########################################
+##################### Kontrollmetoder ##########################################
 
-library(Kostra)
-#library(SSBtools)
+library(Kostra) 
+library(plotly) 
+library(magrittr) 
+
 load("kirkedata_0.RData")
-library(plotly)
 
 
 ####Tusenfeil
 
-tusres<-ThError(data = kirkedata_0, id = "region", x1 = "konfirmanter", x2 = "konfirmanter_1", ll = -3, ul = 3)
+tusres<-ThError(data = kirkedata_0, id = "region", x1 = "konfirmanter", x2 = "konfirmanter_1", ll = -0.5, ul = 0.5)
 
 #Plotter punktene, med forklaringer på aksene og tittel
-fig1 <- plot_ly(data = tusres,x= ~x1, y=~diffLog10, type ="scatter", name="observasjon", mode ="markers")   %>% 
-  layout(title = "Tusenfeil", xaxis = list(title = "Konfirmanter"), yaxis = list(title = "logaritmen til differansen")) %>%
-    add_trace(x = ~x1, y=~upperLimit, name = 'Øvre grense' , mode="lines")  %>% 
-  add_trace(x = ~x1, y=~lowerLimit, name = 'Nedre grense',mode="lines") 
+fig1 <- plot_ly(data = tusres,x= ~x1, y=~diffLog10, type ="scatter", split = ~outlier,mode ="markers",
+                text = paste("<br><br>Id:  ",tusres$id, "<br><br>Verdi i år:  ", tusres$x1,"<br>Verdi i fjor:", tusres$x2 ),            
+                hovertemplate = paste( "<b>%{text}<br>", "Logaritmen til differansen: %{y:}<br>", "<extra></extra>" )              )   %>% 
+  layout(title = "Tusenfeil", xaxis = list(title = "Konfirmanter"), yaxis = list(title = "logaritmen til differansen"), legend=list(title=list(text='Outlier:'))) %>%
+    add_trace(x = ~x1, y=~upperLimit,inherit = FALSE, name = 'Øvre grense' , mode="lines", type="scatter")  %>% 
+  add_trace(x = ~x1, y=~lowerLimit,inherit = FALSE, name = 'Nedre grense',mode="lines", type="scatter") 
 fig1
 
 
+
 ####HB-funksjonen
-hbres <- Hb(data = kirkedata_0, id = "region", x1 = "konfirmanter", x2 = "konfirmanter_1",pC=10,pU=0.9,pA=0.05)
+hbres <- Hb(data = kirkedata_0, id = "region", x1 = "konfirmanter", x2 = "konfirmanter_1",pC=8,pU=0.75,pA=0.05)
 
 #Plotter funksjonen
 hbres<-hbres[order(hbres$maxX),]
 
 #Plotter punktene, med forklaringer på aksene og tittel
-fig2 <- plot_ly(data = hbres,x= ~maxX, y=~ratio, type ="scatter", name="observasjon", mode ="markers")  %>% 
+fig2 <- plot_ly(data = hbres,x= ~maxX, y=~ratio, type ="scatter",split = ~outlier, mode ="markers",
+                text = paste("<br><br>Id:  ",hbres$id, "<br><br>Verdi i år:  ", hbres$x1,"<br>Verdi i fjor:", hbres$x2 ),            
+                hovertemplate = paste( "<b>%{text}<br>", "Forholdstallet: %{y:}<br>", "<extra></extra>" )   
+                )  %>% 
         layout(title = "HB metoden konfirmanter i kommunen",
                       xaxis = list(title = "Maks antall Konfirmanter"),
-                      yaxis = list(title = "Forholdstallet")) %>% 
-        add_trace(x = ~maxX, y=~upperLimit, name = 'Øvre grense' , mode="lines")  %>% 
-        add_trace(x = ~maxX, y=~lowerLimit, name = 'Nedre grense',mode="lines") 
+                      yaxis = list(title = "Forholdstallet"),
+                     legend=list(title=list(text='Outlier:'))
+               ) %>% 
+        add_trace(x = ~maxX, y=~upperLimit, name = 'Øvre grense' , mode="lines", inherit = FALSE, type="scatter")  %>% 
+        add_trace(x = ~maxX, y=~lowerLimit, name = 'Nedre grense',mode="lines", inherit = FALSE, type="scatter") 
 fig2
 
 
@@ -124,12 +134,13 @@ qres <- Quartile(data = kirkedata_0, id = "region", x1 = "konfirmanter", y1 = "p
 # ser på outlierne
 qres[qres$outlier==1,c("id","x1","y1","ratio","ratioAll")]
 
-
+ 
 #lage grafikk av metoden
 fig3 <- plot_ly(data = qres,x= ~ratio, type ="histogram", name="observasjon")  %>% 
         layout(title = "Kvartilmetode andelen konfirmanter i kommunen",
-                      xaxis = list(title = "Andel konfirmanter"),
-                      yaxis = list(title = "Antall kommuner"))%>% 
+               xaxis = list(title = "Andel konfirmanter"),
+               yaxis = list(title = "Antall kommuner")
+               )%>% 
       add_segments(x = ~upperLimit, xend=~upperLimit,y=0, yend=50, name = 'Øvre grense' ) %>% 
       add_segments(x = ~lowerLimit, xend=~lowerLimit,y=0, yend=50,name = 'Øvre grense' ) 
       
@@ -140,16 +151,21 @@ fig3
 ############# Robust regresjon ####################################
 regres <- OutlierRegressionMicro(data= kirkedata_0, idName ="region" , strataName = NULL,
                                  xName ="personer15" , yName ="konfirmanter" ,
-                                 method = "ordinary", limitModel = 6, limitIterate = 6)
+                                 method = "ordinary", limitModel = 5, limitIterate = 5)
 
 
 #Plotter punktene, med forklaringer på aksene og tittel
 
-fig4 <- plot_ly(data = regres,x= ~x, y=~y, type ="scatter", mode ="markers", color =~ as.character(outlier), colors=c("blue","red"))  %>% 
+fig4 <- plot_ly(data = regres,x= ~x, y=~y, type ="scatter", mode ="markers", split = ~outlier,
+                text = paste("<br><br>Id:  ",regres$id, "<br><br>15 åringer :  ", regres$x,"<br>Konfirmanter:", regres$y ),            
+                hovertemplate = paste( "<b>%{text}<br>" )  
+                     )  %>% 
   layout(title = "Robust regresjon konfirmanter mot 15-åringer i kommunen",
          xaxis = list(title = "Antall 15-åringer"),
-         yaxis = list(title = "Antall Konfirmanter")) %>% 
-  add_lines(x = ~x, y=~yHat, name="Linje")  
+         yaxis = list(title = "Antall Konfirmanter"),
+         legend=list(title=list(text='Outlier:'))
+         ) %>% 
+  add_lines(x = ~x, y=~yHat, name="Linje", inherit = FALSE, type="scatter")  
 fig4
 
 
@@ -158,7 +174,7 @@ fig4
 regres[regres$outlier==1,c("id","x","y","rStud")]
 
 ################# Innflytelse på totalen ###################################
-rankres<-Rank2NumVar(data=kirkedata_0, idVar= "region", xVar="konfirmanter", yVar= "konfirmanter_1", 
+rankres<-Rank2NumVar(data=kirkedata_0, idVar= "region", xVar="konfirmanter_1", yVar= "konfirmanter", 
                      strataVar = NULL, antall = 10,grense = NULL, identiske = FALSE)
 rankres
 
