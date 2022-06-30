@@ -7,7 +7,7 @@ head(kirkedata)
 #Oppgave 2. Sett opp noen kontroller for antall døpte
 
 regler<-validator( dopte>0,
-              dopte<=fodde)
+                   dopte<=fodde)
 
 
 #Oppgave 3 Kjør kontrollene på datasettet kirkedata
@@ -35,34 +35,45 @@ summary(resultat)
 library(Kostra)
 load("kirkedata_0.RData")
 
+
 # Oppgave 6 Sjekk om det er tusedenfeil funksjoen ThError i rapportering av antall døpte.
 #           Lag figurer eller print ut resulatet 
 
 tusres<-ThError(data = kirkedata_0, id = "region", x1 = "dopte", x2 = "dopte_1",
                 ll = -3, ul = 3)
 
-plot_ly(data = tusres,x= ~x1, y=~diffLog10, type ="scatter", name="observasjon", mode ="markers")   %>% 
-  layout(title = "Tusenfeil", xaxis = list(title = "Døpte"), yaxis = list(title = "logaritmen til differansen")) %>%
-  add_trace(x = ~x1, y=~upperLimit, name = 'Øvre grense' , mode="lines")  %>% 
-  add_trace(x = ~x1, y=~lowerLimit, name = 'Nedre grense',mode="lines") 
 
+#Plotter punktene, med forklaringer på aksene og tittel
+plot_ly(data = tusres,x= ~x1, y=~diffLog10, type ="scatter", split = ~outlier,mode ="markers",
+                text = paste("<br><br>Id:  ",tusres$id, "<br><br>Verdi i år:  ", tusres$x1,"<br>Verdi i fjor:", tusres$x2 ),            
+                hovertemplate = paste( "<b>%{text}<br>", "Logaritmen til differansen: %{y:}<br>", "<extra></extra>" )              )   %>% 
+  layout(title = "Tusenfeil", xaxis = list(title = "Døpte"), yaxis = list(title = "logaritmen til differansen"), legend=list(title=list(text='Outlier:'))) %>%
+  add_trace(x = ~x1, y=~upperLimit,inherit = FALSE, name = 'Øvre grense' , mode="lines", type="scatter")  %>% 
+  add_trace(x = ~x1, y=~lowerLimit,inherit = FALSE, name = 'Nedre grense',mode="lines", type="scatter") 
 
 
 # Oppgave 7 Sjekk om du finner noen merkelige observasjoner med HB-metoden (Hb), varier parametre C og U.
 
 
-hbres <- Hb(data = kirkedata_0, id = "region", x1 = "dopte", x2 = "dopte_1",pC=10,pU=0.9,pA=0.05)
+hbres <- Hb(data = kirkedata_0, id = "region", x1 = "dopte", x2 = "dopte_1",pC=8,pU=0.6,pA=0.05)
 
+#Dataene må være sortert for at grafen skal bli korrekt
+hbres<-hbres[order(hbres$maxX),]
 
-hbres<-hbres[order(hbres$maxX),]#Dataene må være sortert for at grafen skal bli korrekt
 #Plotter punktene, med forklaringer på aksene og tittel
-plot_ly(data = hbres,x= ~maxX, y=~ratio, type ="scatter", name="observasjon", mode ="markers")  %>% 
-  layout(title = "HB metoden",
-         xaxis = list(title = "Maks antall døpte"),
-         yaxis = list(title = "Forholdstallet")) %>% 
-  add_trace(x = ~maxX, y=~upperLimit, name = 'Øvre grense' , mode="lines")  %>% 
-  add_trace(x = ~maxX, y=~lowerLimit, name = 'Nedre grense',mode="lines") 
 
+
+plot_ly(data = hbres,x= ~maxX, y=~ratio, type ="scatter",split = ~outlier, mode ="markers",
+        text = paste("<br><br>Id:  ",hbres$id, "<br><br>Verdi i år:  ", hbres$x1,"<br>Verdi i fjor:", hbres$x2 ),            
+        hovertemplate = paste( "<b>%{text}<br>", "Forholdstallet: %{y:}<br>", "<extra></extra>" )   
+       )  %>% 
+  layout(title = "HB metoden Døpte i kommunen",
+         xaxis = list(title = "Maks antall døpte"),
+         yaxis = list(title = "Forholdstallet"),
+         legend=list(title=list(text='Outlier:'))
+  ) %>% 
+  add_trace(x = ~maxX, y=~upperLimit, name = 'Øvre grense' , mode="lines", inherit = FALSE, type="scatter")  %>% 
+  add_trace(x = ~maxX, y=~lowerLimit, name = 'Nedre grense',mode="lines", inherit = FALSE, type="scatter") 
 
 
 
@@ -81,13 +92,20 @@ plot_ly(data = qres,x= ~ratio, type ="histogram", name="observasjon")  %>%
 
 regres <- OutlierRegressionMicro(data= kirkedata_0, idName ="region" , strataName = NULL,
                                  xName ="fodde" , yName ="dopte" ,
-                                 method = "ordinary", limitModel = 6, limitIterate = 6)
+                                 method = "ordinary", limitModel = 5, limitIterate = 6)
 
-plot_ly(data = regres,x= ~x, y=~y, type ="scatter", mode ="markers", color =~ as.character(outlier), colors=c("blue","red"))  %>% 
-  layout(title = "Robust regresjon",
+#Plotter punktene, med forklaringer på aksene og tittel
+plot_ly(data = regres,x= ~x, y=~y, type ="scatter", mode ="markers", split = ~outlier,
+                text = paste("<br><br>Id:  ",regres$id, "<br><br>fødte :  ", regres$x,"<br>Døpte:", regres$y ),            
+                hovertemplate = paste( "<b>%{text}<br>" )  
+)  %>% 
+  layout(title = "Robust regresjon døpte mot fødte i kommunen",
          xaxis = list(title = "Antall fødte"),
-         yaxis = list(title = "Antall døpte")) %>% 
-  add_lines(x = ~x, y=~yHat, name="Linje")  
+         yaxis = list(title = "Antall døpte"),
+         legend=list(title=list(text='Outlier:'))
+  ) %>% 
+  add_lines(x = ~x, y=~yHat, name="Linje", inherit = FALSE, type="scatter")  
+
 
 
 
@@ -106,10 +124,8 @@ diffres[,c("id","x","y","Diff","DiffProsAvTotx") ]
 aggres<- AggrSml2NumVar(data=kirkedata_0, xVar="dopte_1", yVar="dopte", strataVar = "kostragr", identiske = FALSE)
 aggres
 
-plot_ly(data=aggres, x = ~strata,  y = ~Sumx, name = "Konfirmanter forrige år", type = "bar") %>% 
-  add_trace(y = ~Sumy, name = 'Konfirmanter i år')
+plot_ly(data=aggres, x = ~strata,  y = ~Sumx, name = "Døpte forrige år", type = "bar") %>% 
+  add_trace(y = ~Sumy, name = 'Døpte i år')
 
 
 plot_ly(data=aggres, x =~strata ,  y = ~Diff, type = "bar")
-
-
