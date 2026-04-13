@@ -1,0 +1,17 @@
+{
+  "template": "https://github.com/statisticsnorway/ssb-project-template-stat",
+  "commit": "1b829bba08aaafc09793dee15054bb51ce89879c",
+  "checkout": "1.7.0",
+  "context": {
+    "cookiecutter": {
+      "full_name": "sjentoft",
+      "email": "susiejentoft@gmail.com",
+      "project_name": "kurs-metode-validere2",
+      "description": "",
+      "license_year": "2026",
+      "_template": "https://github.com/statisticsnorway/ssb-project-template-stat",
+      "_commit": "1b829bba08aaafc09793dee15054bb51ce89879c"
+    }
+  },
+  "directory": null
+}

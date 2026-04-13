@@ -1,0 +1,1 @@
+# Mappe for open data for bruk til kurs i validering
