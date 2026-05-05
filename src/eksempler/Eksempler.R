@@ -1,6 +1,20 @@
-#rm(list=ls())
+# -*- coding: utf-8 -*-
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .R
+#       format_name: light
+#       format_version: '1.5'
+#   kernelspec:
+#     display_name: R
+#     language: R
+#     name: ir
+# ---
 
-######## Validering ###########################
+# rm(list=ls())
+
+# ####### Validering ###########################
 
 #Laster ned pakken med funksjoner
 library(validate)
@@ -83,7 +97,7 @@ cf<-confront(kirkedata,regler,key="region")
 summary(cf)
 plot(cf)
 
-##################### Kontrollmetoder ##########################################
+# #################### Kontrollmetoder ##########################################
 
 library(Kostra) 
 library(plotly) 
@@ -92,7 +106,7 @@ library(magrittr)
 load("kirkedata_0.RData")
 
 
-####Tusenfeil
+# ###Tusenfeil
 
 tusres<-ThError(data = kirkedata_0, id = "region", x1 = "konfirmanter", x2 = "konfirmanter_1", ll = -0.5, ul = 0.5)
 
@@ -134,7 +148,7 @@ qres <- Quartile(data = kirkedata_0, id = "region", x1 = "konfirmanter", y1 = "p
 # ser på outlierne
 qres[qres$outlier==1,c("id","x1","y1","ratio","ratioAll")]
 
- 
+
 #lage grafikk av metoden
 fig3 <- plot_ly(data = qres,x= ~ratio, type ="histogram", name="observasjon")  %>% 
         layout(title = "Kvartilmetode andelen konfirmanter i kommunen",
@@ -143,7 +157,7 @@ fig3 <- plot_ly(data = qres,x= ~ratio, type ="histogram", name="observasjon")  %
                )%>% 
       add_segments(x = ~upperLimit, xend=~upperLimit,y=0, yend=50, name = 'Øvre grense' ) %>% 
       add_segments(x = ~lowerLimit, xend=~lowerLimit,y=0, yend=50,name = 'Øvre grense' ) 
-      
+
 fig3
 
 
@@ -154,7 +168,7 @@ regres <- OutlierRegressionMicro(data= kirkedata_0, idName ="region" , strataNam
                                  method = "ordinary", limitModel = 5, limitIterate = 5)
 
 
-#Plotter punktene, med forklaringer på aksene og tittel
+# Plotter punktene, med forklaringer på aksene og tittel
 
 fig4 <- plot_ly(data = regres,x= ~x, y=~y, type ="scatter", mode ="markers", split = ~outlier,
                 text = paste("<br><br>Id:  ",regres$id, "<br><br>15 åringer :  ", regres$x,"<br>Konfirmanter:", regres$y ),            
@@ -197,6 +211,6 @@ fig5 <- plot_ly(data=aggres, x = ~strata,  y = ~Sumx, name = "Konfirmanter forri
 fig5
 
 fig6 <- plot_ly(data=aggres, x =~strata ,  y = ~Diff, type = "bar")
-  
+
 fig6
 
