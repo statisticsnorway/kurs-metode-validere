@@ -12,11 +12,11 @@
 *.feather
 *.gz
 *.orig
-*.parquet
 *.sas7bdat
 *.xls
 *.xlsx
 *.zip
+*.parquet # Trenger det til kurs
 *.rda
 *.rej
 
@@ -222,7 +222,7 @@ cython_debug/
 .Rapp.history
 
 # Session Data files
-.RData
+# .RData # Trenger det til kurs
 .RDataTmp
 
 # User-specific files
