@@ -1607,8 +1607,8 @@ pandas-stubs = ">=2.2.3.241126"
 [package.source]
 type = "git"
 url = "https://github.com/statisticsnorway/ssb-vaskify.git"
-reference = "dev-wideformat"
-resolved_reference = "a0d7ba06f7fcf6c26fa3025e2620359b6a314875"
+reference = "HEAD"
+resolved_reference = "77045913b03143b4eb94b67dbd023dbd629e605d"
 
 [[package]]
 name = "stack-data"
@@ -1750,4 +1750,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "16fc95aff64ef5ff4134e110a423ab9f84d78af63a39c612e74e6f2ac001c617"
+content-hash = "a9742e6b77257c91968a1a0bda0a03a65bbfa51fd40defad170a9de60ae60a1a"
