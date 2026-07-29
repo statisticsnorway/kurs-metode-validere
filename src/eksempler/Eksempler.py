@@ -11,13 +11,18 @@
 #     name: kurs-metode-validere2
 # ---
 
-# %% [markdown]
-# # Lager data
+# %%
+# Lager data
 
 # %%
 # Henter biblioteker
 import pandas as pd
 import numpy as np
+import pandera.pandas as pa
+from pandera.pandas import DataFrameModel
+from pandera.pandas import Field
+from pandera.typing import Series
+
 from vaskify import Detect
 
 # %%
@@ -31,6 +36,7 @@ data = {
 }
 df = pd.DataFrame(data)
 df["alder_anlegg"] = df["alder_anlegg"].astype(str)
+df["id"] = df["id"].astype(str)
 
 # %%
 # Lager feil
@@ -45,6 +51,34 @@ df.loc[df["id"] == 61, "forbruk_vann"] = ( df.loc[df["id"] == 61, "forbruk_vann"
 # En vet ikke hvor gammelelt annlegget er
 df.loc[df["id"] == 71, "alder_anlegg"] = "."
 
+
+# %%
+class ReglerVann(pa.DataFrameModel):
+    """Schema for validating water consumption inndata."""
+
+    id: Series[str] = Field(nullable=False, unique=True)
+    forbruk_vann: Series[float]=Field(nullable=False, ge=0 )
+    alder_anlegg: Series[str]=Field(nullable=False)
+   
+
+
+# %%
+# Setter opp innledene kontroller
+regler_start = pa.DataFrameSchema( columns={ "id": Column(int), 
+                                          "forbruk_vann": Column(float), 
+                                          "alder_anlegg": Column(str), }, 
+                                   checks=[ Check( lambda df: len(df) > 125, error="Antall observasjoner må være større enn 125" ), 
+                                         Check( lambda df: df.shape[1] == 3, error="Datasettet må ha nøyaktig 3 variabler" ), ], 
+                                  strict=True, )
+
+
+# %%
+try:
+    regler_start.validate(df, lazy=True) 
+    print("Alle kontroller bestått")
+
+except pa.errors.SchemaErrors as e:
+    print(e.failure_cases)
 
 # %% [markdown]
 # # Validerings eksempler
