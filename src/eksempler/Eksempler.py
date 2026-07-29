@@ -12,6 +12,41 @@
 # ---
 
 # %% [markdown]
+# # Lager data
+
+# %%
+# Henter biblioteker
+import pandas as pd
+import numpy as np
+from vaskify import Detect
+
+# %%
+# Lager data
+np.random.seed(42)
+n = 150
+data = {
+    "id": range(1, n + 1),
+    "forbruk_vann": np.round(np.random.normal(loc=150, scale=30, size=n), 1),
+    "alder_anlegg": np.round(np.random.normal(loc=2000, scale=20, size=n), 1),
+}
+df = pd.DataFrame(data)
+df["alder_anlegg"] = df["alder_anlegg"].astype(str)
+
+# %%
+# Lager feil
+# To rapporterer i negative verdier
+df.loc[df["id"] == 11, "forbruk_vann"] = (df.loc[df["id"] == 11, "forbruk_vann"]*-1)
+df.loc[df["id"] == 21, "forbruk_vann"] = (df.loc[df["id"] == 21, "forbruk_vann"]*-1)
+
+# To rapporterer i liter istedenfor i m*3
+df.loc[df["id"] == 51, "forbruk_vann"] = (df.loc[df["id"] == 51, "forbruk_vann"] * 1000)
+df.loc[df["id"] == 61, "forbruk_vann"] = ( df.loc[df["id"] == 61, "forbruk_vann"] * 1000)
+
+# En vet ikke hvor gammelelt annlegget er
+df.loc[df["id"] == 71, "alder_anlegg"] = "."
+
+
+# %% [markdown]
 # # Validerings eksempler
 
 # %%
@@ -111,5 +146,49 @@ det.hb(y_var = ["konfirmanter", "konfirmanter_1"], pc = 8, pu = 0.75, pa = 0.05)
 # %%
 det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
 
+
+# %%
+import numpy as np
+import pandas as pd
+
+# Sørger for at tilfeldige tall blir like hver gang koden kjøres
+np.random.seed(42)
+
+# Genererer 100 observasjoner
+n = 100
+
+
+# %%
+data = {
+    # Unik ID fra 1 til 100
+    "id": range(1, n + 1),
+    # Simulerer vannforbruk i m*3 med et gjennomsnitt på 150 og standardavvik på 30L
+    "forbruk_vann": np.round(np.random.normal(loc=150, scale=30, size=n), 1),
+}
+
+# Oppretter datasettet (DataFrame)
+df = pd.DataFrame(data)
+
+
+# %%
+print(df.head())
+
+# %%
+# 2. Legger inn 2 negative observasjoner (ID 11 og ID 21)
+df.loc[df["id"] == 11, "forbruk_vann"] = -45.0
+df.loc[df["id"] == 21, "forbruk_vann"] = -12.5
+
+# 3. Legger inn 2 observasjoner som rapporterer i liter i stedet for m3 (ID 51 og ID 61)
+# Verdien ganges med 1000 for å simulere at tallet ble tastet inn i liter (f.eks. 150 000 istedenfor 150)
+df.loc[df["id"] == 51, "forbruk_vann"] = (
+    df.loc[df["id"] == 51, "forbruk_vann"] * 1000
+)
+df.loc[df["id"] == 61, "forbruk_vann"] = (
+    df.loc[df["id"] == 61, "forbruk_vann"] * 1000
+)
+
+
+# %%
+import pandera as pa
 
 # %%
