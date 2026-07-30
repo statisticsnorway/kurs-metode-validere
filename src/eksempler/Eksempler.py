@@ -32,34 +32,70 @@ n = 150
 data = {
     "id": range(1, n + 1),
     "forbruk_vann": np.round(np.random.normal(loc=150, scale=30, size=n), 1),
-    "alder_anlegg": np.round(np.random.normal(loc=2000, scale=20, size=n), 1),
+    "alder_anlegg": np.round(np.random.normal(loc=2000, scale=20, size=n), 0),
 }
 df = pd.DataFrame(data)
-df["alder_anlegg"] = df["alder_anlegg"].astype(str)
-df["id"] = df["id"].astype(str)
+
+print(df)
+
+
+# %%
+print(df.dtypes)
 
 # %%
 # Lager feil
 # To rapporterer i negative verdier
-df.loc[df["id"] == 11, "forbruk_vann"] = (df.loc[df["id"] == 11, "forbruk_vann"]*-1)
-df.loc[df["id"] == 21, "forbruk_vann"] = (df.loc[df["id"] == 21, "forbruk_vann"]*-1)
+df.loc[df["id"] == 1, "forbruk_vann"] *= -1 
+df.loc[df["id"] == 2, "forbruk_vann"] *= -1
+df.loc[df["id"] == 3, "forbruk_vann"] *= 1000
+df.loc[df["id"] == 4, "forbruk_vann"] *= 1000
+df.loc[df["id"] == 5, "alder_anlegg"] = pd.NA
+
+# df.loc[df["id"] == "1", "forbruk_vann"] = (df.loc[df["id"] == "1", "forbruk_vann"]*-1)
+# df.loc[df["id"] == "2", "forbruk_vann"] = (df.loc[df["id"] == "2", "forbruk_vann"]*-1)
 
 # To rapporterer i liter istedenfor i m*3
-df.loc[df["id"] == 51, "forbruk_vann"] = (df.loc[df["id"] == 51, "forbruk_vann"] * 1000)
-df.loc[df["id"] == 61, "forbruk_vann"] = ( df.loc[df["id"] == 61, "forbruk_vann"] * 1000)
+# df.loc[df["id"] == "3", "forbruk_vann"] = (df.loc[df["id"] == "3", "forbruk_vann"] * 1000)
+# df.loc[df["id"] == "4", "forbruk_vann"] = ( df.loc[df["id"] == "4", "forbruk_vann"] * 1000)
 
 # En vet ikke hvor gammelelt annlegget er
-df.loc[df["id"] == 71, "alder_anlegg"] = "."
+# df.loc[df["id"] == "5", "alder_anlegg"] = "."
+
+print(df.dtypes)
+print(df)
 
 
 # %%
 class ReglerVann(pa.DataFrameModel):
     """Schema for validating water consumption inndata."""
 
-    id: Series[str] = Field(nullable=False, unique=True)
-    forbruk_vann: Series[float]=Field(nullable=False, ge=0 )
-    alder_anlegg: Series[str]=Field(nullable=False)
+    id: Series[int] = Field(nullable=False, unique=True)
+    forbruk_vann: Series[float]=Field(nullable=False, ge=0, le=1000 )
+    alder_anlegg: Series[float]=Field(nullable=False)
    
+
+
+# %%
+# Kjører kontrollene på datasettet
+
+try: 
+    validert_df = ReglerVann.validate(df, lazy=True) 
+    print("Alle kontroller bestått")
+
+except pa.errors.SchemaErrors as e:
+    feil=e.failure_cases
+    print(feil)
+
+ 
+
+# %%
+antall_feil = len(feil)
+antall_obs = len(df)
+andel_feil=antall_feil/antall_obs
+andel_feil
+antall_feil_variabel = feil["column"].value_counts()
+antall_feil_obs = feil["index"].value_counts()
+antall_feil_regel = feil["check"].value_counts()
 
 
 # %%
@@ -73,12 +109,31 @@ regler_start = pa.DataFrameSchema( columns={ "id": Column(int),
 
 
 # %%
+df.describe()
+#df.info
+
+# %%
 try:
     regler_start.validate(df, lazy=True) 
     print("Alle kontroller bestått")
 
 except pa.errors.SchemaErrors as e:
     print(e.failure_cases)
+
+
+# %%
+class ReglerPerson(pa.DataFrameModel):
+
+    person_id: Series[str] = Field(unique=True, nullable=False)
+
+    alder: Series[int] = Field(ge=0, le=120)
+
+    inntekt: Series[float] = Field(ge=0)
+
+    kjonn: Series[str] = Field(isin=["K", "M"])
+
+
+
 
 # %% [markdown]
 # # Validerings eksempler
