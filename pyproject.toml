@@ -14,6 +14,7 @@ dependencies = [
     "update (>=0.0.1,<0.0.2)",
     "ssb-vaskify @ git+https://github.com/statisticsnorway/ssb-vaskify.git",
     "plotly (>=6.7.0,<7.0.0)",
+    "pandera (>=0.32.1,<0.33.0)",
 ]
 
 [dependency-groups]
