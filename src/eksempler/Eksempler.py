@@ -12,17 +12,16 @@
 # ---
 
 # %%
-# Lager data
-
-# %%
 # Henter biblioteker
 import pandas as pd
 import numpy as np
 import pandera.pandas as pa
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from pandera.pandas import DataFrameModel
 from pandera.pandas import Field
 from pandera.typing import Series
-
+from klass import get_classification
 from vaskify import Detect
 
 # %%
@@ -83,19 +82,34 @@ try:
     print("Alle kontroller bestått")
 
 except pa.errors.SchemaErrors as e:
-    feil=e.failure_cases
+    feil = e.failure_cases
     print(feil)
 
  
 
 # %%
+# Analyse av kontrollene
 antall_feil = len(feil)
 antall_obs = len(df)
 andel_feil=antall_feil/antall_obs
-andel_feil
+
 antall_feil_variabel = feil["column"].value_counts()
 antall_feil_obs = feil["index"].value_counts()
 antall_feil_regel = feil["check"].value_counts()
+antall_feil_variabel
+
+
+# %%
+# Grafikk
+fig, ax = plt.subplots(figsize=(8, 4))
+antall_feil_variabel.plot( kind="barh", color="steelblue", ax=ax )
+ax.set_title("Antall feil per variabel")
+ax.set_xlabel("Antall feil")
+ax.set_ylabel("Variabler")
+ax.xaxis.set_major_locator( MaxNLocator(integer=True) )
+
+fig.tight_layout()
+plt.show()
 
 
 # %%
@@ -106,6 +120,20 @@ regler_start = pa.DataFrameSchema( columns={ "id": Column(int),
                                    checks=[ Check( lambda df: len(df) > 125, error="Antall observasjoner må være større enn 125" ), 
                                          Check( lambda df: df.shape[1] == 3, error="Datasettet må ha nøyaktig 3 variabler" ), ], 
                                   strict=True, )
+
+
+# %%
+# Kontroll opp mot kodelister og standarder som ligger i Klass
+# Vi bruke pakken ssb-klass-python til å hente kodelisten
+
+naering = get_classification(6)
+koder = naering.get_codes()
+kodeverk = koder.data
+gyldige_koder = kodeverk["code"].tolist()
+
+class ReglerBedrift(pa.DataFrameModel): 
+    naering: Series[str] = Field( isin=gyldige_koder )
+
 
 
 # %%
