@@ -11,8 +11,12 @@
 #     name: kurs-metode-validere2
 # ---
 
+# %% [markdown]
+# # Eksemel på logiske kontroller med pakken Pandera
+
 # %%
 # Henter biblioteker
+
 import pandas as pd
 import numpy as np
 import pandera.pandas as pa
@@ -21,11 +25,13 @@ from matplotlib.ticker import MaxNLocator
 from pandera.pandas import DataFrameModel
 from pandera.pandas import Field
 from pandera.typing import Series
+from pandera import Check
 from klass import get_classification
 from vaskify import Detect
 
 # %%
 # Lager data
+
 np.random.seed(42)
 n = 150
 data = {
@@ -39,32 +45,24 @@ print(df)
 
 
 # %%
-print(df.dtypes)
-
-# %%
 # Lager feil
 # To rapporterer i negative verdier
 df.loc[df["id"] == 1, "forbruk_vann"] *= -1 
 df.loc[df["id"] == 2, "forbruk_vann"] *= -1
+
+# To rapporterer i liter istedenfor i kubic meter
 df.loc[df["id"] == 3, "forbruk_vann"] *= 1000
 df.loc[df["id"] == 4, "forbruk_vann"] *= 1000
+
+# En vet ikke hvor gammelt annlegget er
 df.loc[df["id"] == 5, "alder_anlegg"] = pd.NA
 
-# df.loc[df["id"] == "1", "forbruk_vann"] = (df.loc[df["id"] == "1", "forbruk_vann"]*-1)
-# df.loc[df["id"] == "2", "forbruk_vann"] = (df.loc[df["id"] == "2", "forbruk_vann"]*-1)
 
-# To rapporterer i liter istedenfor i m*3
-# df.loc[df["id"] == "3", "forbruk_vann"] = (df.loc[df["id"] == "3", "forbruk_vann"] * 1000)
-# df.loc[df["id"] == "4", "forbruk_vann"] = ( df.loc[df["id"] == "4", "forbruk_vann"] * 1000)
-
-# En vet ikke hvor gammelelt annlegget er
-# df.loc[df["id"] == "5", "alder_anlegg"] = "."
-
-print(df.dtypes)
 print(df)
 
 
 # %%
+# Setter opp regler for hver variabel
 class ReglerVann(pa.DataFrameModel):
     """Schema for validating water consumption inndata."""
 
@@ -89,15 +87,31 @@ except pa.errors.SchemaErrors as e:
 
 # %%
 # Analyse av kontrollene
+
 antall_feil = len(feil)
 antall_obs = len(df)
 andel_feil=antall_feil/antall_obs
 
+andel_feil
+
+
+# %%
+# antall feil per variabel
 antall_feil_variabel = feil["column"].value_counts()
-antall_feil_obs = feil["index"].value_counts()
-antall_feil_regel = feil["check"].value_counts()
 antall_feil_variabel
 
+
+# %%
+# antall feil per observasjon 
+antall_feil_obs = feil["index"].value_counts()
+
+antall_feil_obs
+
+# %%
+# antall feil per regel
+
+antall_feil_regel = feil["check"].value_counts()
+antall_feil_regel
 
 # %%
 # Grafikk
@@ -114,17 +128,28 @@ plt.show()
 
 # %%
 # Setter opp innledene kontroller
-regler_start = pa.DataFrameSchema( columns={ "id": Column(int), 
-                                          "forbruk_vann": Column(float), 
-                                          "alder_anlegg": Column(str), }, 
-                                   checks=[ Check( lambda df: len(df) > 125, error="Antall observasjoner må være større enn 125" ), 
-                                         Check( lambda df: df.shape[1] == 3, error="Datasettet må ha nøyaktig 3 variabler" ), ], 
-                                  strict=True, )
+
+class ReglerVann(pa.DataFrameModel):
+    
+    id: Series[int] = Field(nullable=False, unique=True)
+    
+    forbruk_vann: Series[float]=Field(nullable=False, ge=0, le=1000 )
+    
+    alder_anlegg: Series[float]=Field(nullable=False)
+    
+    @pa.dataframe_check 
+    def minst_125_observasjoner(cls, df): 
+        return len(df) > 125 
+        
+    @pa.dataframe_check 
+    def tre_variabler(cls, df): 
+        return df.shape[1] == 3
 
 
 # %%
 # Kontroll opp mot kodelister og standarder som ligger i Klass
 # Vi bruke pakken ssb-klass-python til å hente kodelisten
+# kort form: gyldige_koder = get_classification(6).get_codes().data["code"].tolist()
 
 naering = get_classification(6)
 koder = naering.get_codes()
@@ -137,34 +162,8 @@ class ReglerBedrift(pa.DataFrameModel):
 
 
 # %%
-df.describe()
-#df.info
+# Selektiv editering - mistenkelige observasjoner
 
-# %%
-try:
-    regler_start.validate(df, lazy=True) 
-    print("Alle kontroller bestått")
-
-except pa.errors.SchemaErrors as e:
-    print(e.failure_cases)
-
-
-# %%
-class ReglerPerson(pa.DataFrameModel):
-
-    person_id: Series[str] = Field(unique=True, nullable=False)
-
-    alder: Series[int] = Field(ge=0, le=120)
-
-    inntekt: Series[float] = Field(ge=0)
-
-    kjonn: Series[str] = Field(isin=["K", "M"])
-
-
-
-
-# %% [markdown]
-# # Validerings eksempler
 
 # %%
 import pandas as pd
@@ -187,11 +186,44 @@ kirkedata.head()
 # ### Eksempel på tusenfeil
 
 # %%
+print(thousand_result["flag_thousand_1"].dtype)
+
+# %%
 det = Detect(kirkedata_0, id_nr = "region")
 thousand_result = det.thousand_error(y_var = ["konfirmanter", "konfirmanter_1"], lower_bound=-0.5, upper_bound=0.5)
+diff = thousand_result["konfirmanter"] - thousand_result["konfirmanter_1"]
+thousand_result["diffLog10"] = (np.sign(diff) * np.log10(np.abs(diff) + 1))
+
+
+# %%
+outliere = thousand_result[ thousand_result["flag_thousand_1"] == 1 ] 
+print(outliere)
+
+# %%
+avvik = thousand_result[ (thousand_result["diffLog10"] < -1) | (thousand_result["diffLog10"] > 1) ]
+avvik.head()
 
 # %%
 thousand_result.head()
+
+# %%
+fig, ax = plt.subplots(figsize=(8, 6))
+# scatter = ax.scatter( thousand_result["konfirmanter"], thousand_result["diffLog10"] )
+ax.scatter( thousand_result.loc[ thousand_result["flag_thousand_1"] == 0.0, "konfirmanter" ], 
+            thousand_result.loc[ thousand_result["flag_thousand_1"] == 0.0, "diffLog10" ], 
+            color="steelblue", label="Ikke outlier" )
+
+ax.scatter( thousand_result.loc[ thousand_result["flag_thousand_1"] == 1.0, "konfirmanter" ], 
+            thousand_result.loc[ thousand_result["flag_thousand_1"] == 1.0, "diffLog10" ], 
+            color="red", label="Outlier" )
+
+ax.set_title("Tusenfeil")
+
+ax.set_xlabel("Konfirmanter")
+
+ax.set_ylabel("logaritmen til differansen")
+
+
 
 # %%
 import plotly.express as px
@@ -263,49 +295,5 @@ det.hb(y_var = ["konfirmanter", "konfirmanter_1"], pc = 8, pu = 0.75, pa = 0.05)
 # %%
 det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
 
-
-# %%
-import numpy as np
-import pandas as pd
-
-# Sørger for at tilfeldige tall blir like hver gang koden kjøres
-np.random.seed(42)
-
-# Genererer 100 observasjoner
-n = 100
-
-
-# %%
-data = {
-    # Unik ID fra 1 til 100
-    "id": range(1, n + 1),
-    # Simulerer vannforbruk i m*3 med et gjennomsnitt på 150 og standardavvik på 30L
-    "forbruk_vann": np.round(np.random.normal(loc=150, scale=30, size=n), 1),
-}
-
-# Oppretter datasettet (DataFrame)
-df = pd.DataFrame(data)
-
-
-# %%
-print(df.head())
-
-# %%
-# 2. Legger inn 2 negative observasjoner (ID 11 og ID 21)
-df.loc[df["id"] == 11, "forbruk_vann"] = -45.0
-df.loc[df["id"] == 21, "forbruk_vann"] = -12.5
-
-# 3. Legger inn 2 observasjoner som rapporterer i liter i stedet for m3 (ID 51 og ID 61)
-# Verdien ganges med 1000 for å simulere at tallet ble tastet inn i liter (f.eks. 150 000 istedenfor 150)
-df.loc[df["id"] == 51, "forbruk_vann"] = (
-    df.loc[df["id"] == 51, "forbruk_vann"] * 1000
-)
-df.loc[df["id"] == 61, "forbruk_vann"] = (
-    df.loc[df["id"] == 61, "forbruk_vann"] * 1000
-)
-
-
-# %%
-import pandera as pa
 
 # %%
