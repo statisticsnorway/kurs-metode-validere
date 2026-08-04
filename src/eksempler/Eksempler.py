@@ -28,6 +28,7 @@ from pandera.typing import Series
 from pandera import Check
 from klass import get_classification
 from vaskify import Detect
+from sklearn.linear_model import HuberRegressor
 
 # %%
 # Lager data
@@ -64,7 +65,6 @@ print(df)
 # %%
 # Setter opp regler for hver variabel
 class ReglerVann(pa.DataFrameModel):
-    """Schema for validating water consumption inndata."""
 
     id: Series[int] = Field(nullable=False, unique=True)
     forbruk_vann: Series[float]=Field(nullable=False, ge=0, le=1000 )
@@ -127,16 +127,10 @@ plt.show()
 
 
 # %%
-# Setter opp innledene kontroller
+# Setter opp innledene kontroller på antall observasjoner og antall variabler
 
 class ReglerVann(pa.DataFrameModel):
-    
-    id: Series[int] = Field(nullable=False, unique=True)
-    
-    forbruk_vann: Series[float]=Field(nullable=False, ge=0, le=1000 )
-    
-    alder_anlegg: Series[float]=Field(nullable=False)
-    
+
     @pa.dataframe_check 
     def minst_125_observasjoner(cls, df): 
         return len(df) > 125 
@@ -144,7 +138,14 @@ class ReglerVann(pa.DataFrameModel):
     @pa.dataframe_check 
     def tre_variabler(cls, df): 
         return df.shape[1] == 3
-
+    
+    id: Series[int] = Field(nullable=False, unique=True)
+    
+    forbruk_vann: Series[float]=Field(nullable=False, ge=0, le=1000 )
+    
+    alder_anlegg: Series[float]=Field(nullable=False)
+    
+  
 
 # %%
 # Kontroll opp mot kodelister og standarder som ligger i Klass
@@ -161,8 +162,8 @@ class ReglerBedrift(pa.DataFrameModel):
 
 
 
-# %%
-# Selektiv editering - mistenkelige observasjoner
+# %% [markdown]
+# # Selektiv editering - mistenkelige observasjoner
 
 
 # %%
@@ -181,6 +182,113 @@ kirkedata_0.head()
 
 # %%
 kirkedata.head()
+
+# %% [markdown]
+# # Kvatilmetde
+
+# %%
+det = Detect(kirkedata_0, id_nr = "region")
+resultat = det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
+resultat.head()
+
+# %%
+outliere = resultat[resultat["flag_quartile"] == 1 ] 
+outliere.head(20)
+
+# %%
+# Lager figur over kvartilmetoden
+
+lower = resultat["lower_limit"].iloc[0]
+upper = resultat["upper_limit"].iloc[0]
+
+fig, ax = plt.subplots(figsize=(8, 4)) 
+ax.hist( resultat["ratio"], bins=30, color="steelblue", edgecolor="black" )
+ax.set_title("Fordeling av ratio=konfirmanter/15 åringer") 
+ax.set_xlabel("Ratio") 
+ax.set_ylabel("Antall observasjoner")
+ax.axvline( lower, color="red", linestyle="--", linewidth=2, label="Nedre grense" )
+ax.axvline( upper, color="red", linestyle="--", linewidth=2, label="Øvre grense" )
+
+# %%
+# Alternativ figur
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(resultat["ranking"], resultat["ratio"], color="steelblue", alpha=0.7 )
+ax.set_title("Ratio mot ranking") 
+ax.set_xlabel("Ranking") 
+ax.set_ylabel("Ratio")
+ax.axhline( lower, color="red", linestyle="--", linewidth=2, label=f"Nedre grense = {lower:.2f}" )
+ax.axhline( upper, color="red", linestyle="--", linewidth=2, label=f"Øvre grense = {upper:.2f}" )
+
+# %% [markdown]
+# # HB-metoden
+
+# %%
+resultat_HB = det.hb(y_var = ["konfirmanter", "konfirmanter_1"], pc = 8, pu = 0.75, pa = 0.05)
+resultat_HB.head()
+
+# %%
+resultat_HB_sort = ( resultat_HB .sort_values("konfirmanter") )
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( resultat_HB_sort["konfirmanter"], resultat_HB_sort["ratio"], color="steelblue", alpha=0.7 )
+ax.set_title("HB metoden") 
+ax.set_xlabel("Konfirmanter") 
+ax.set_ylabel("Ratio")
+ax.plot(resultat_HB_sort["konfirmanter"], resultat_HB_sort["lower_limit"], color="red", linewidth=1, label="Nedre grense" )
+ax.plot(resultat_HB_sort["konfirmanter"], resultat_HB_sort["upper_limit"], color="red", linewidth=1, label="Øvre grense" )
+# ax.fill_between( resultat_HB_sort["konfirmanter"], resultat_HB_sort["lower_limit"], resultat_HB_sort["upper_limit"], color="lightgrey", alpha=0.3 )
+plt.show()
+
+
+# %% [markdown]
+# # Robust regresjon
+
+# %%
+X = kirkedata_0[["personer15"]]
+y = kirkedata_0["konfirmanter"]
+modell = HuberRegressor()
+modell.fit(X, y)
+kirkedata_0["predikert"] = modell.predict(X)
+
+
+
+# %%
+# Lager figur
+data_sort = ( kirkedata_0 .sort_values("personer15") )
+fig, ax = plt.subplots(figsize=(8, 6)) 
+ax.scatter( data_sort["personer15"], data_sort["konfirmanter"], alpha=0.5 )
+ax.plot( data_sort["personer15"], data_sort["predikert"], color="red", linewidth=2, label="Huber-regresjon" )
+ax.set_title("Huber-regresjon") 
+ax.set_xlabel("Personer 15 år") 
+ax.set_ylabel("Konfirmanter") 
+ax.legend() 
+plt.show()
+
+
+# %%
+# Se på de største residualer
+
+kirkedata_0["residual"] = ( kirkedata_0["konfirmanter"] - kirkedata_0["predikert"] )
+kirkedata_0["abs_residual"] = ( kirkedata_0["residual"].abs() )
+print( kirkedata_0.sort_values( "residual", ascending=False ).head(10) )
+
+
+# %%
+store_kommuner = kirkedata_0[ kirkedata_0["personer15"] > 5000 ]
+print(store_kommuner)
+
+# %%
+# kirkedata_0["outlier"] = modell.outliers_
+
+# print( kirkedata_0[ kirkedata_0["outlier"] ] )
+print( kirkedata_0["outlier"].sum() )
+
+# %%
+len(kirkedata_0)
+
+# %%
+print(outliere.columns)
 
 # %% [markdown]
 # ### Eksempel på tusenfeil
@@ -223,32 +331,6 @@ ax.set_xlabel("Konfirmanter")
 
 ax.set_ylabel("logaritmen til differansen")
 
-
-
-# %%
-import plotly.express as px
-import plotly.graph_objects as go
-
-# Main scatter plot
-fig = px.scatter(
-    thousand_result,
-    x="konfirmanter",
-    y="diffLog10",
-    color="outlier",
-    title="Tusenfeil",
-    labels={
-        "konfirmanter": "Konfirmanter",
-        "diffLog10": "logaritmen til differansen",
-        "outlier": "Outlier:"
-    },
-    hover_data={
-        "id": True,
-        "konfirmanter": True,
-        "konfirmanter_1": True,
-        "diffLog10": False  # already shown via hovertemplate
-    }
-)
-fig.show()
 
 
 # %%
