@@ -12,11 +12,9 @@
 # ---
 
 # %% [markdown]
-# # Eksemel på logiske kontroller med pakken Pandera
+# # Henter pakker vi skal bruke
 
 # %%
-# Henter biblioteker
-
 import pandas as pd
 import numpy as np
 import pandera.pandas as pa
@@ -29,6 +27,9 @@ from pandera import Check
 from klass import get_classification
 from vaskify import Detect
 from sklearn.linear_model import HuberRegressor
+
+# %% [markdown]
+# # Lager data vi skal bruke
 
 # %%
 # Lager data
@@ -44,6 +45,9 @@ df = pd.DataFrame(data)
 
 print(df)
 
+
+# %% [markdown]
+# # Legger inn feil i datasettet
 
 # %%
 # Lager feil
@@ -61,6 +65,9 @@ df.loc[df["id"] == 5, "alder_anlegg"] = pd.NA
 
 print(df)
 
+
+# %% [markdown]
+# # Eksemel på logiske kontroller med pakken Pandera
 
 # %%
 # Setter opp regler for hver variabel
@@ -127,7 +134,7 @@ plt.show()
 
 
 # %%
-# Setter opp innledene kontroller på antall observasjoner og antall variabler
+# Legger til innledene kontroller på antall observasjoner og antall variabler
 
 class ReglerVann(pa.DataFrameModel):
 
@@ -165,10 +172,6 @@ class ReglerBedrift(pa.DataFrameModel):
 # %% [markdown]
 # # Selektiv editering - mistenkelige observasjoner
 
-
-# %%
-import pandas as pd
-from vaskify import Detect
 
 # %% [markdown]
 # ## Les inn data
@@ -251,13 +254,25 @@ modell = HuberRegressor()
 modell.fit(X, y)
 kirkedata_0["predikert"] = modell.predict(X)
 
+# Beregner residualer og stanadiserte residualer
+kirkedata_0["residual"] = ( kirkedata_0["konfirmanter"] - kirkedata_0["predikert"] )
+residual_std = kirkedata_0["residual"].std()
+kirkedata_0["std_residual"] = ( kirkedata_0["residual"] / residual_std )
+kirkedata_0["abs_std_residual"] = ( kirkedata_0["std_residual"] .abs() )
+
+# Lager outlier variabel
+grense = 2
+kirkedata_0["outlier"] = ( kirkedata_0["abs_std_residual"] > grense )
+kirkedata_0.head()
 
 
 # %%
 # Lager figur
 data_sort = ( kirkedata_0 .sort_values("personer15") )
 fig, ax = plt.subplots(figsize=(8, 6)) 
-ax.scatter( data_sort["personer15"], data_sort["konfirmanter"], alpha=0.5 )
+#ax.scatter( data_sort["personer15"], data_sort["konfirmanter"], alpha=0.5 )
+ax.scatter( data_sort.loc[ ~data_sort["outlier"], "personer15" ], data_sort.loc[ ~data_sort["outlier"], "konfirmanter" ], color="steelblue", alpha=0.5, label="Vanlige observasjoner" )
+ax.scatter( data_sort.loc[ data_sort["outlier"], "personer15" ], data_sort.loc[ data_sort["outlier"], "konfirmanter" ], color="red", alpha=0.8, label="Outliere" )
 ax.plot( data_sort["personer15"], data_sort["predikert"], color="red", linewidth=2, label="Huber-regresjon" )
 ax.set_title("Huber-regresjon") 
 ax.set_xlabel("Personer 15 år") 
@@ -267,28 +282,112 @@ plt.show()
 
 
 # %%
-# Se på de største residualer
-
-kirkedata_0["residual"] = ( kirkedata_0["konfirmanter"] - kirkedata_0["predikert"] )
-kirkedata_0["abs_residual"] = ( kirkedata_0["residual"].abs() )
-print( kirkedata_0.sort_values( "residual", ascending=False ).head(10) )
-
-
-# %%
-store_kommuner = kirkedata_0[ kirkedata_0["personer15"] > 5000 ]
-print(store_kommuner)
-
-# %%
-# kirkedata_0["outlier"] = modell.outliers_
-
-# print( kirkedata_0[ kirkedata_0["outlier"] ] )
+# Analyse av outlier
 print( kirkedata_0["outlier"].sum() )
 
 # %%
-len(kirkedata_0)
+# se på outlierne
+outliere = kirkedata_0[ kirkedata_0["outlier"] ] 
+print(outliere)
+
+
+# %% [markdown]
+# # Selektiv editering - innflytelse på statistikken
 
 # %%
-print(outliere.columns)
+# Størrelse - observasjons andel av totalen
+
+kirkedata["andel_av_total"] = ( kirkedata["konfirmanter"] / kirkedata["konfirmanter"].sum() )
+
+# ser på de 5 som har størst betydning for totalen
+print( kirkedata.sort_values( "andel_av_total", ascending=False ) .head(5) )
+
+# %%
+# Endring - bidrag til endring.
+
+# Beregner endringen
+kirkedata["endring"] = ( kirkedata["konfirmanter"] - kirkedata["konfirmanter_1"] )
+total_endring = ( kirkedata["endring"] .sum() )
+pros_endring= total_endring*100/(kirkedata["konfirmanter_1"].sum())
+
+# Beregner hvor mye hver kommune bidrar til endringen
+kirkedata["bidrag"] = ( kirkedata["endring"] / total_endring )
+kirkedata["abs_bidrag"] = ( kirkedata["bidrag"] .abs() )
+pros_endring= total_endring*100/(kirkedata["konfirmanter_1"].sum())
+
+print(pros_endring)
+print( kirkedata.sort_values( "abs_bidrag", ascending=False ) .head(10) )
+
+
+# %%
+# Innflytelse - kombinere størrelse og endring
+kirkedata["innflytelse"] = ( kirkedata["personer15"] * kirkedata["endring"].abs() )
+print( kirkedata .sort_values( "innflytelse", ascending=False ) .head(10) )
+
+# %%
+# Figur
+topp10 = ( kirkedata .sort_values( "innflytelse", ascending=False ) .head(10) )
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( kirkedata["personer15"], kirkedata["endring"], alpha=0.6)
+ax.scatter( topp10["personer15"], topp10["endring"], color="red", s=100, label="10 største" )
+ax.set_title( "Størrelse og endring" )
+ax.set_xlabel( "Personer 15 år" ) 
+ax.set_ylabel( "Endring" )
+ax.legend()
+plt.show()
+
+# %%
+# Figur 2 bobleplott
+
+kirkedata["abs_endring"] = ( kirkedata["endring"].abs() )
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( kirkedata["personer15"], kirkedata["endring"], s=kirkedata["innflytelse"] / 100, alpha=0.5, color="steelblue" )
+ax.set_title( "Innflytelse på endringstall" )
+ax.set_xlabel( "Personer 15 år" ) 
+ax.set_ylabel( "Endring i antall konfirmanter" )
+plt.show()
+
+
+# %% [markdown]
+# # Maskinlæring for å finne outliere
+
+# %%
+# Isolation forest
+
+from sklearn.ensemble import IsolationForest
+
+X = kirkedata[ [ "personer15", "konfirmanter" ] ]
+
+modell = IsolationForest( contamination=0.02, random_state=42 )
+# contamination=0.02 omtrent 2 % av observasjonene forventes å være outliere.
+
+modell.fit(X)
+kirkedata["iforest"] = ( modell.predict(X) )
+kirkedata["outlier_if"] = ( kirkedata["iforest"] == -1 )
+kirkedata["anomaly_score"] = ( modell.score_samples(X) )
+outliere = kirkedata[ kirkedata["outlier_if"] ] 
+
+print( outliere[ [ "name", "personer15", "konfirmanter","anomaly_score" , "kostragr"] ] )
+
+
+# %%
+# Local Outlier Factor
+from sklearn.neighbors import LocalOutlierFactor
+
+X = kirkedata_0[ [ "personer15", "konfirmanter" ] ]
+lof = LocalOutlierFactor( n_neighbors=20,contamination=0.02)
+kirkedata_0["lof"] = lof.fit_predict(X)
+kirkedata_0["outlier_lof"] = ( kirkedata_0["lof"] == -1 )
+
+outliere = kirkedata_0[ kirkedata_0["outlier_lof"] ] 
+
+print( outliere[ [ "name", "personer15", "konfirmanter", "kostragr"] ] )
+
+
+# %%
+# Random forest
+
 
 # %% [markdown]
 # ### Eksempel på tusenfeil
