@@ -12,11 +12,11 @@
 *.feather
 *.gz
 *.orig
+*.parquet
 *.sas7bdat
 *.xls
 *.xlsx
 *.zip
-*.parquet # Trenger det til kurs
 *.rda
 *.rej
 
@@ -222,7 +222,7 @@ cython_debug/
 .Rapp.history
 
 # Session Data files
-# .RData # Trenger det til kurs
+.RData
 .RDataTmp
 
 # User-specific files
@@ -269,5 +269,5 @@ po/*~
 rsconnect/
 
 # Dynaconf secret and local files
-.secrets.*
-.local.*
+*.secrets.*
+*.local.*

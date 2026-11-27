@@ -18,6 +18,9 @@ dependencies = [
     "matplotlib (>=3.11.1,<4.0.0)",
     "ssb-klass-python (>=1.0.8,<2.0.0)",
     "scikit-learn (>=1.9.0,<2.0.0)",
+    "pxweb (>=0.0.0,<0.0.1)",
+    "requests (>=2.34.2,<3.0.0)",
+    "pyjstat (>=2.4.0,<3.0.0)",
 ]
 
 [dependency-groups]

@@ -478,3 +478,161 @@ det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
 
 
 # %%
+
+# %% [markdown]
+# ## Hente data fra statistikkbanken
+
+# %%
+import requests
+
+r = requests.get("https://www.ssb.no")
+print(r.status_code)
+
+# %%
+import requests
+import pandas as pd
+
+url = "https://data.ssb.no/api/v0/no/table/12058"
+
+metadata = requests.get(url).json()
+
+for var in metadata["variables"]:
+    print()
+    print("Kode:", var["code"])
+    print("Tekst:", var["text"])
+    print("Antall verdier:", len(var["values"]))
+
+# %%
+for var in metadata["variables"]:
+    if "statistikkvariabel" in var["text"].lower():
+        print(var["code"])
+
+        for v, t in zip(var["values"], var["valueTexts"]):
+            print(v, "-", t)
+
+# %%
+import requests
+
+url = "https://data.ssb.no/api/v0/no/table/12058"
+
+query = {
+    "query": [
+        {
+            "code": "ContentsCode",
+            "selection": {
+                "filter": "item",
+                "values": [
+                    "KOSboligbranner0000",
+                    "KOSutrykningerto0000",
+                    "KOSpiper0000",
+                    "KOSpiperfeiet0000",
+                    "KOSaarsverkialtp0000",
+                    "KOSBDUtot0000"
+                ]
+            }
+        },
+        {
+            "code": "Tid",
+            "selection": {
+                "filter": "item",
+                "values": ["2024", "2025"]
+            }
+        }
+    ],
+    "response": {
+        "format": "json-stat2"
+    }
+}
+
+r = requests.post(url, json=query)
+
+print(r.status_code)
+
+# %%
+import requests
+import pandas as pd
+
+metadata = requests.get(
+    "https://data.ssb.no/api/v0/no/table/12058"
+).json()
+
+for var in metadata["variables"]:
+    if var["code"] == "KOKkommuneregion0000":
+
+        kommuneinfo = pd.DataFrame({
+            "kommunenr": var["values"],
+            "region": var["valueTexts"]
+        })
+
+kommuneinfo.head()
+
+# %%
+from pyjstat import pyjstat
+
+dataset = pyjstat.Dataset.read(r.text)
+df = dataset.write("dataframe")
+
+df.head()
+
+# %%
+df = df.merge(
+    kommuneinfo,
+    on="region",
+    how="left"
+)
+df.head()
+
+# %%
+print(df.columns)
+
+# %%
+korte_navn = {
+    "Antall boligbranner (antall)": "boligbrann",
+    "Antall utrykninger  (antall)": "utrykning",
+    "Antall piper  (antall)": "piper",
+    "Antall piper feiet  (antall)": "piper_feiet",
+    "Årsverk i brann- og ulykkesvern per 1000 innbyggere (årsverk)": "arsverk",
+    "Brutto driftsutgifter til funksjon 338, 339, konsern (1000 kr)": "brutto_drift"
+}
+
+df["variabel_kort"] = df["statistikkvariabel"].map(korte_navn)
+
+
+
+# %%
+df_bred = df.pivot(
+    index="region",
+    columns=["variabel_kort", "år"],
+    values="value"
+)
+
+# %%
+import requests
+
+r = requests.get("https://data.ssb.no/api/v0/no/table/12058")
+
+print(r.status_code)
+print(r.text[:200])
+
+# %%
+import requests
+import pandas as pd
+
+
+url = "https://api.statbank.ssb.no/statisticsbank/api/v1/no/table/12058"
+
+metadata = requests.get(url).json()
+
+print(metadata.keys())
+
+# %%
+metadata = requests.get(
+    "https://data.ssb.no/api/v0/no/table/12058"
+).json()
+
+for var in metadata["variables"]:
+    if var["code"] == "KOKkommuneregion0000":
+        print(var["values"][:10])
+        print(var["valueTexts"][:10])
+
+# %%

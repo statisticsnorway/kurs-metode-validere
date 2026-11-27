@@ -1847,6 +1847,18 @@ files = [
 tests = ["pytest"]
 
 [[package]]
+name = "pxweb"
+version = "0.0.0"
+description = "Coming soon"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pxweb-0.0.0-py3-none-any.whl", hash = "sha256:11710bde2eb1439d26a507b773e7a77722760f90ca74224da68e69001102c642"},
+    {file = "pxweb-0.0.0.tar.gz", hash = "sha256:051b643356cb4fb85ac67bf37f8e83040a21fe21653d8f9f2b2e7073ee52ef40"},
+]
+
+[[package]]
 name = "pyarrow"
 version = "23.0.1"
 description = "Python library for Apache Arrow"
@@ -2088,6 +2100,21 @@ files = [
 
 [package.extras]
 windows-terminal = ["colorama (>=0.4.6)"]
+
+[[package]]
+name = "pyjstat"
+version = "2.4.0"
+description = "Library to handle JSON-stat data in python using pandas DataFrames."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pyjstat-2.4.0.tar.gz", hash = "sha256:dd7fc7b4ed0892fb949ff87eeea3e2c838754eef43922b40ba3c38fadfc30795"},
+]
+
+[package.dependencies]
+pandas = "*"
+requests = "*"
 
 [[package]]
 name = "pyparsing"
@@ -2889,4 +2916,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "073f093bd2e187f0aee0cac4326161a8d20eddfdb577e882b52f833648db33f7"
+content-hash = "45dc6b65c574f0c5a40832a3dbce6fa40786a7c5c53e455ec76a038f9438b043"
