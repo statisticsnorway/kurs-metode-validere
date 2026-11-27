@@ -485,34 +485,6 @@ det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
 # %%
 import requests
 
-r = requests.get("https://www.ssb.no")
-print(r.status_code)
-
-# %%
-import requests
-import pandas as pd
-
-url = "https://data.ssb.no/api/v0/no/table/12058"
-
-metadata = requests.get(url).json()
-
-for var in metadata["variables"]:
-    print()
-    print("Kode:", var["code"])
-    print("Tekst:", var["text"])
-    print("Antall verdier:", len(var["values"]))
-
-# %%
-for var in metadata["variables"]:
-    if "statistikkvariabel" in var["text"].lower():
-        print(var["code"])
-
-        for v, t in zip(var["values"], var["valueTexts"]):
-            print(v, "-", t)
-
-# %%
-import requests
-
 url = "https://data.ssb.no/api/v0/no/table/12058"
 
 query = {
@@ -544,9 +516,7 @@ query = {
     }
 }
 
-r = requests.post(url, json=query)
 
-print(r.status_code)
 
 # %%
 import requests
@@ -580,10 +550,8 @@ df = df.merge(
     on="region",
     how="left"
 )
-df.head()
 
-# %%
-print(df.columns)
+print(f"Antall rader: {len(df)}")
 
 # %%
 korte_navn = {
@@ -597,42 +565,69 @@ korte_navn = {
 
 df["variabel_kort"] = df["statistikkvariabel"].map(korte_navn)
 
+df.head()
+
+# %%
+gyldige_kom = get_classification(131).get_codes().data["code"].tolist()
+df = df[df["kommunenr"].isin(gyldige_kom)]
+print(f"Antall rader: {len(df)}")
 
 
 # %%
-df_bred = df.pivot(
-    index="region",
+df_ny = df.drop(columns=["region", "statistikkvariabel"])
+df_ny.head()
+
+
+# %%
+df_bred = df.pivot_table(
+    index="kommunenr",
     columns=["variabel_kort", "år"],
-    values="value"
+    values="value",
+    aggfunc="first"
 )
+df_bred.head()
 
 # %%
-import requests
+df_bred.columns = [
+    f"{variabel}_{aar}"
+    for variabel, aar in df_bred.columns
+]
 
-r = requests.get("https://data.ssb.no/api/v0/no/table/12058")
+df_bred = df_bred.reset_index()
 
-print(r.status_code)
-print(r.text[:200])
-
-# %%
-import requests
-import pandas as pd
-
-
-url = "https://api.statbank.ssb.no/statisticsbank/api/v1/no/table/12058"
-
-metadata = requests.get(url).json()
-
-print(metadata.keys())
+df_bred.head()
 
 # %%
-metadata = requests.get(
-    "https://data.ssb.no/api/v0/no/table/12058"
-).json()
+brann = df_bred
 
-for var in metadata["variables"]:
-    if var["code"] == "KOKkommuneregion0000":
-        print(var["values"][:10])
-        print(var["valueTexts"][:10])
+# %%
+brann.info()
+
+# %%
+kolonner = [
+    "boligbrann_2024",
+    "boligbrann_2025",
+    "brutto_drift_2024",
+    "brutto_drift_2025",
+    "piper_2024",
+    "piper_2025",
+    "piper_feiet_2024",
+    "piper_feiet_2025",
+    "utrykning_2024",
+    "utrykning_2025"
+]
+
+brann[kolonner] = brann[kolonner].astype("Int64")
+brann.info()
+
+# %%
+brann.head()
+
+
+# %%
+brann.to_parquet(
+    "../../data/brannvern_kommuner_2024_2025.parquet",
+    index=False
+)
 
 # %%

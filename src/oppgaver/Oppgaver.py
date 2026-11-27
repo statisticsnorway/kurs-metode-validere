@@ -1,0 +1,657 @@
+# ---
+# jupyter:
+#   jupytext:
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#   kernelspec:
+#     display_name: kurs-metode-validere2
+#     language: python
+#     name: kurs-metode-validere2
+# ---
+
+# %% [markdown]
+# # Henter pakker vi skal bruke
+
+# %%
+import pandas as pd
+import numpy as np
+import pandera.pandas as pa
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+from pandera.pandas import DataFrameModel
+from pandera.pandas import Field
+from pandera.typing import Series
+from pandera import Check
+from klass import get_classification
+from vaskify import Detect
+from sklearn.linear_model import HuberRegressor
+
+# %% [markdown]
+#
+# ## Datasett: Brann- og ulykkesvern i norske kommuner
+#
+# Datasettet er hentet fra Statistikkbankens tabell 12058: *Brann- og ulykkesvern - grunnlagstall og nøkkeltall*.
+#
+# Datasettet inneholder kommunedata for årene 2024 og 2025. Hver rad representerer én kommune, identifisert ved kommunenummer.
+#
+# Variablene i datasettet er:
+#
+# | Variabel | Beskrivelse |
+# |-----------|-------------|
+# | kommunenr | Kommunenummer |
+# | boligbrann_2024 | Antall boligbranner i 2024 |
+# | boligbrann_2025 | Antall boligbranner i 2025 |
+# | utrykning_2024 | Antall utrykninger i 2024 |
+# | utrykning_2025 | Antall utrykninger i 2025 |
+# | piper_2024 | Antall registrerte piper i 2024 |
+# | piper_2025 | Antall registrerte piper i 2025 |
+# | piper_feiet_2024 | Antall piper feiet i 2024 |
+# | piper_feiet_2025 | Antall piper feiet i 2025 |
+# | arsverk_2024 | Årsverk i brann- og ulykkesvern per 1000 innbyggere i 2024 |
+# | arsverk_2025 | Årsverk i brann- og ulykkesvern per 1000 innbyggere i 2025 |
+# | brutto_drift_2024 | Brutto driftsutgifter til funksjon 338 og 339 i 2024 (1000 kroner) |
+# | brutto_drift_2025 | Brutto driftsutgifter til funksjon 338 og 339 i 2025 (1000 kroner) |
+#
+
+# %%
+# Les inn filen
+
+df = pd.read_parquet(
+    "../../data/brannvern_kommuner_2024_2025.parquet"
+)
+
+
+
+# %% [markdown]
+# # Ser på datasettet
+
+# %%
+df.head()
+
+# %% [markdown]
+# # Finner ut litt om datasettet
+
+# %%
+df.info()
+
+# %%
+df.describe()
+
+
+# %% [markdown]
+# # Sette opp logiske kontroller med pakken Pandera
+
+# %%
+# Setter opp regler for hver variabel
+class ReglerBrann(pa.DataFrameModel):
+
+    kommunenr: Series[str] = Field(nullable=False, unique=True)
+    boligbrann_2025: Series[int]=Field(nullable=False, ge=0, le=300 )
+    piper_2025: Series[int]=Field(nullable=False)
+    brutto_drift_2025: Series[int]=Field(nullable=False, ge=0, le=800000 )
+
+
+
+# %%
+# Kjører kontrollene på datasettet
+
+try: 
+    validert_df = ReglerBrann.validate(df, lazy=True) 
+    print("Alle kontroller bestått")
+
+except pa.errors.SchemaErrors as e:
+    feil = e.failure_cases
+    print(feil)
+
+ 
+
+# %% [markdown]
+# ## Oppgave 1: Legg til en ny valideringsregel
+#
+# Utvid `ReglerBrann` med en kontroll for variabelen `brutto_drift_2025`.
+#
+# Kontrollen skal:
+#
+# 1. Sjekke at variabelen har riktig datatype.
+# 2. Sjekke at verdiene ligger innenfor et gyldig verdiområde.
+# 3. Velge et øvre grenseverdi som er så lav at minst noen kommuner får feil ved valideringen.
+#
+# Kjør deretter valideringen 
+#
+# **Tips:** Se på `describe()` for å undersøke nivået på variabelen før du setter grensene.
+
+# %%
+# Analyse av kontrollene
+
+antall_feil = len(feil)
+antall_obs = len(df)
+andel_feil=antall_feil/antall_obs
+
+andel_feil
+
+
+# %%
+# antall feil per variabel
+antall_feil_variabel = feil["column"].value_counts()
+antall_feil_variabel
+
+
+# %%
+# antall feil per observasjon 
+antall_feil_obs = feil["index"].value_counts()
+
+antall_feil_obs
+
+# %%
+# antall feil per regel
+
+antall_feil_regel = feil["check"].value_counts()
+antall_feil_regel
+
+# %%
+# Grafikk
+fig, ax = plt.subplots(figsize=(8, 4))
+antall_feil_variabel.plot( kind="barh", color="steelblue", ax=ax )
+ax.set_title("Antall feil per variabel")
+ax.set_xlabel("Antall feil")
+ax.set_ylabel("Variabler")
+ax.xaxis.set_major_locator( MaxNLocator(integer=True) )
+
+fig.tight_layout()
+plt.show()
+
+
+# %%
+# Legger til innledene kontroller på antall observasjoner og antall variabler
+
+class ReglerBrann_tot(pa.DataFrameModel):
+
+    @pa.dataframe_check 
+    def antall_kommuner(cls, df): 
+        return len(df) == 365 
+        
+    @pa.dataframe_check 
+    def antall_variabler(cls, df): 
+        return df.shape[1] == 13
+    
+    
+    
+  
+
+# %%
+# Kontroll opp mot kodelister og standarder som ligger i Klass
+# Vi bruke pakken ssb-klass-python til å hente kodelisten
+# kort form: gyldige_koder = get_classification(6).get_codes().data["code"].tolist()
+
+gyldige_kom = get_classification(131).get_codes().data["code"].tolist()
+
+
+class ReglerBedrift(pa.DataFrameModel): 
+    kommunenr: Series[str] = Field( isin=gyldige_kom )
+
+
+
+# %% [markdown]
+# # Selektiv editering - mistenkelige observasjoner
+
+
+# %% [markdown]
+# ## Les inn data
+
+# %%
+kirkedata_0 = pd.read_parquet("../../data/kirkedata_0.parquet")
+kirkedata = pd.read_parquet("../../data/kirkedata.parquet")
+
+# %%
+kirkedata_0.head()
+
+# %%
+kirkedata.head()
+
+# %% [markdown]
+# # Kvatilmetde
+
+# %%
+det = Detect(df, id_nr = "kommunenr")
+resultat = det.quartile_error(x_var = "arsverk_2025", y_var = "boligbrann_2025", pkl=2, pku=2)
+resultat.head()
+
+# %%
+outliere = resultat[resultat["flag_quartile"] == 1 ] 
+outliere.head(20)
+
+# %%
+# Lager figur over kvartilmetoden
+
+lower = resultat["lower_limit"].iloc[0]
+upper = resultat["upper_limit"].iloc[0]
+
+fig, ax = plt.subplots(figsize=(8, 4)) 
+ax.hist( resultat["ratio"], bins=30, color="steelblue", edgecolor="black" )
+ax.set_title("Fordeling av ratio=arsverk/boligbrann") 
+ax.set_xlabel("Ratio") 
+ax.set_ylabel("Antall observasjoner")
+ax.axvline( lower, color="red", linestyle="--", linewidth=2, label="Nedre grense" )
+ax.axvline( upper, color="red", linestyle="--", linewidth=2, label="Øvre grense" )
+
+# %%
+# Alternativ figur
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(resultat["ranking"], resultat["ratio"], color="steelblue", alpha=0.7 )
+ax.set_title("Ratio mot ranking") 
+ax.set_xlabel("Ranking") 
+ax.set_ylabel("Ratio")
+ax.axhline( lower, color="red", linestyle="--", linewidth=2, label=f"Nedre grense = {lower:.2f}" )
+ax.axhline( upper, color="red", linestyle="--", linewidth=2, label=f"Øvre grense = {upper:.2f}" )
+
+# %% [markdown]
+# # HB-metoden
+
+# %%
+resultat_HB = det.hb(y_var = ["brutto_drift_2025", "brutto_drift_2024"], pc = 8, pu = 0.75, pa = 0.05)
+# resultat_HB.head()
+
+# %%
+resultat_HB_sort = ( resultat_HB .sort_values("brutto_drift_2024") )
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( resultat_HB_sort["brutto_drift_2024"], resultat_HB_sort["ratio"], color="steelblue", alpha=0.7 )
+ax.set_title("HB metoden") 
+ax.set_xlabel("brutto_drift_2024") 
+ax.set_ylabel("Ratio")
+ax.plot(resultat_HB_sort["brutto_drift_2024"], resultat_HB_sort["lower_limit"], color="red", linewidth=1, label="Nedre grense" )
+ax.plot(resultat_HB_sort["brutto_drift_2024"], resultat_HB_sort["upper_limit"], color="red", linewidth=1, label="Øvre grense" )
+# ax.fill_between( resultat_HB_sort["konfirmanter"], resultat_HB_sort["lower_limit"], resultat_HB_sort["upper_limit"], color="lightgrey", alpha=0.3 )
+plt.show()
+
+
+# %% [markdown]
+# # Robust regresjon
+
+# %%
+X = kirkedata_0[["personer15"]]
+y = kirkedata_0["konfirmanter"]
+modell = HuberRegressor()
+modell.fit(X, y)
+kirkedata_0["predikert"] = modell.predict(X)
+
+# Beregner residualer og stanadiserte residualer
+kirkedata_0["residual"] = ( kirkedata_0["konfirmanter"] - kirkedata_0["predikert"] )
+residual_std = kirkedata_0["residual"].std()
+kirkedata_0["std_residual"] = ( kirkedata_0["residual"] / residual_std )
+kirkedata_0["abs_std_residual"] = ( kirkedata_0["std_residual"] .abs() )
+
+# Lager outlier variabel
+grense = 2
+kirkedata_0["outlier"] = ( kirkedata_0["abs_std_residual"] > grense )
+kirkedata_0.head()
+
+
+# %%
+# Lager figur
+data_sort = ( kirkedata_0 .sort_values("personer15") )
+fig, ax = plt.subplots(figsize=(8, 6)) 
+#ax.scatter( data_sort["personer15"], data_sort["konfirmanter"], alpha=0.5 )
+ax.scatter( data_sort.loc[ ~data_sort["outlier"], "personer15" ], data_sort.loc[ ~data_sort["outlier"], "konfirmanter" ], color="steelblue", alpha=0.5, label="Vanlige observasjoner" )
+ax.scatter( data_sort.loc[ data_sort["outlier"], "personer15" ], data_sort.loc[ data_sort["outlier"], "konfirmanter" ], color="red", alpha=0.8, label="Outliere" )
+ax.plot( data_sort["personer15"], data_sort["predikert"], color="red", linewidth=2, label="Huber-regresjon" )
+ax.set_title("Huber-regresjon") 
+ax.set_xlabel("Personer 15 år") 
+ax.set_ylabel("Konfirmanter") 
+ax.legend() 
+plt.show()
+
+
+# %%
+# Analyse av outlier
+print( kirkedata_0["outlier"].sum() )
+
+# %%
+# se på outlierne
+outliere = kirkedata_0[ kirkedata_0["outlier"] ] 
+print(outliere)
+
+
+# %% [markdown]
+# # Selektiv editering - innflytelse på statistikken
+
+# %%
+# Størrelse - observasjons andel av totalen
+
+kirkedata["andel_av_total"] = ( kirkedata["konfirmanter"] / kirkedata["konfirmanter"].sum() )
+
+# ser på de 5 som har størst betydning for totalen
+print( kirkedata.sort_values( "andel_av_total", ascending=False ) .head(5) )
+
+# %%
+# Endring - bidrag til endring.
+
+# Beregner endringen
+kirkedata["endring"] = ( kirkedata["konfirmanter"] - kirkedata["konfirmanter_1"] )
+total_endring = ( kirkedata["endring"] .sum() )
+pros_endring= total_endring*100/(kirkedata["konfirmanter_1"].sum())
+
+# Beregner hvor mye hver kommune bidrar til endringen
+kirkedata["bidrag"] = ( kirkedata["endring"] / total_endring )
+kirkedata["abs_bidrag"] = ( kirkedata["bidrag"] .abs() )
+pros_endring= total_endring*100/(kirkedata["konfirmanter_1"].sum())
+
+print(pros_endring)
+print( kirkedata.sort_values( "abs_bidrag", ascending=False ) .head(10) )
+
+
+# %%
+# Innflytelse - kombinere størrelse og endring
+kirkedata["innflytelse"] = ( kirkedata["personer15"] * kirkedata["endring"].abs() )
+print( kirkedata .sort_values( "innflytelse", ascending=False ) .head(10) )
+
+# %%
+# Figur
+topp10 = ( kirkedata .sort_values( "innflytelse", ascending=False ) .head(10) )
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( kirkedata["personer15"], kirkedata["endring"], alpha=0.6)
+ax.scatter( topp10["personer15"], topp10["endring"], color="red", s=100, label="10 største" )
+ax.set_title( "Størrelse og endring" )
+ax.set_xlabel( "Personer 15 år" ) 
+ax.set_ylabel( "Endring" )
+ax.legend()
+plt.show()
+
+# %%
+# Figur 2 bobleplott
+
+kirkedata["abs_endring"] = ( kirkedata["endring"].abs() )
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter( kirkedata["personer15"], kirkedata["endring"], s=kirkedata["innflytelse"] / 100, alpha=0.5, color="steelblue" )
+ax.set_title( "Innflytelse på endringstall" )
+ax.set_xlabel( "Personer 15 år" ) 
+ax.set_ylabel( "Endring i antall konfirmanter" )
+plt.show()
+
+
+# %% [markdown]
+# # Maskinlæring for å finne outliere
+
+# %%
+# Isolation forest
+
+from sklearn.ensemble import IsolationForest
+
+X = kirkedata[ [ "personer15", "konfirmanter" ] ]
+
+modell = IsolationForest( contamination=0.02, random_state=42 )
+# contamination=0.02 omtrent 2 % av observasjonene forventes å være outliere.
+
+modell.fit(X)
+kirkedata["iforest"] = ( modell.predict(X) )
+kirkedata["outlier_if"] = ( kirkedata["iforest"] == -1 )
+kirkedata["anomaly_score"] = ( modell.score_samples(X) )
+outliere = kirkedata[ kirkedata["outlier_if"] ] 
+
+print( outliere[ [ "name", "personer15", "konfirmanter","anomaly_score" , "kostragr"] ] )
+
+
+# %%
+# Local Outlier Factor
+from sklearn.neighbors import LocalOutlierFactor
+
+X = kirkedata_0[ [ "personer15", "konfirmanter" ] ]
+lof = LocalOutlierFactor( n_neighbors=20,contamination=0.02)
+kirkedata_0["lof"] = lof.fit_predict(X)
+kirkedata_0["outlier_lof"] = ( kirkedata_0["lof"] == -1 )
+
+outliere = kirkedata_0[ kirkedata_0["outlier_lof"] ] 
+
+print( outliere[ [ "name", "personer15", "konfirmanter", "kostragr"] ] )
+
+
+# %%
+# Random forest
+
+
+# %% [markdown]
+# ### Eksempel på tusenfeil
+
+# %%
+print(thousand_result["flag_thousand_1"].dtype)
+
+# %%
+det = Detect(kirkedata_0, id_nr = "region")
+thousand_result = det.thousand_error(y_var = ["konfirmanter", "konfirmanter_1"], lower_bound=-0.5, upper_bound=0.5)
+diff = thousand_result["konfirmanter"] - thousand_result["konfirmanter_1"]
+thousand_result["diffLog10"] = (np.sign(diff) * np.log10(np.abs(diff) + 1))
+
+
+# %%
+outliere = thousand_result[ thousand_result["flag_thousand_1"] == 1 ] 
+print(outliere)
+
+# %%
+avvik = thousand_result[ (thousand_result["diffLog10"] < -1) | (thousand_result["diffLog10"] > 1) ]
+avvik.head()
+
+# %%
+thousand_result.head()
+
+# %%
+fig, ax = plt.subplots(figsize=(8, 6))
+# scatter = ax.scatter( thousand_result["konfirmanter"], thousand_result["diffLog10"] )
+ax.scatter( thousand_result.loc[ thousand_result["flag_thousand_1"] == 0.0, "konfirmanter" ], 
+            thousand_result.loc[ thousand_result["flag_thousand_1"] == 0.0, "diffLog10" ], 
+            color="steelblue", label="Ikke outlier" )
+
+ax.scatter( thousand_result.loc[ thousand_result["flag_thousand_1"] == 1.0, "konfirmanter" ], 
+            thousand_result.loc[ thousand_result["flag_thousand_1"] == 1.0, "diffLog10" ], 
+            color="red", label="Outlier" )
+
+ax.set_title("Tusenfeil")
+
+ax.set_xlabel("Konfirmanter")
+
+ax.set_ylabel("logaritmen til differansen")
+
+
+
+# %%
+# Add upper limit line
+fig.add_trace(
+    go.Scatter(
+        x=thousand_result["konfirmanter"],
+        y=thousand_result["upperLimit"],
+        mode="lines",
+        name="Øvre grense"
+    )
+)
+
+# Add lower limit line
+fig.add_trace(
+    go.Scatter(
+        x=thousand_result["konfirmanter"],
+        y=thousand_result["lowerLimit"],
+        mode="lines",
+        name="Nedre grense"
+    )
+)
+
+
+
+# %%
+
+# %%
+det.thousand_error(y_var = ["konfirmanter", "konfirmanter_1"], lower_bound=-0.5, upper_bound=0.5, output_scope = "outliers")
+
+# %%
+
+# %% [markdown]
+# ### Eksempel på HB-metoden
+
+# %%
+det.hb(y_var = ["konfirmanter", "konfirmanter_1"], pc = 8, pu = 0.75, pa = 0.05)
+
+# %%
+
+# %% [markdown]
+# ## Eksempel på kvartile-metoden
+
+# %%
+det.quartile_error(x_var = "konfirmanter", y_var = "personer15", pkl=2, pku=2)
+
+
+# %%
+
+# %% [markdown]
+# ## Hente data fra statistikkbanken
+
+# %%
+import requests
+
+url = "https://data.ssb.no/api/v0/no/table/12058"
+
+query = {
+    "query": [
+        {
+            "code": "ContentsCode",
+            "selection": {
+                "filter": "item",
+                "values": [
+                    "KOSboligbranner0000",
+                    "KOSutrykningerto0000",
+                    "KOSpiper0000",
+                    "KOSpiperfeiet0000",
+                    "KOSaarsverkialtp0000",
+                    "KOSBDUtot0000"
+                ]
+            }
+        },
+        {
+            "code": "Tid",
+            "selection": {
+                "filter": "item",
+                "values": ["2024", "2025"]
+            }
+        }
+    ],
+    "response": {
+        "format": "json-stat2"
+    }
+}
+
+
+
+# %%
+import requests
+import pandas as pd
+
+metadata = requests.get(
+    "https://data.ssb.no/api/v0/no/table/12058"
+).json()
+
+for var in metadata["variables"]:
+    if var["code"] == "KOKkommuneregion0000":
+
+        kommuneinfo = pd.DataFrame({
+            "kommunenr": var["values"],
+            "region": var["valueTexts"]
+        })
+
+kommuneinfo.head()
+
+# %%
+from pyjstat import pyjstat
+
+dataset = pyjstat.Dataset.read(r.text)
+df = dataset.write("dataframe")
+
+df.head()
+
+# %%
+df = df.merge(
+    kommuneinfo,
+    on="region",
+    how="left"
+)
+
+print(f"Antall rader: {len(df)}")
+
+# %%
+korte_navn = {
+    "Antall boligbranner (antall)": "boligbrann",
+    "Antall utrykninger  (antall)": "utrykning",
+    "Antall piper  (antall)": "piper",
+    "Antall piper feiet  (antall)": "piper_feiet",
+    "Årsverk i brann- og ulykkesvern per 1000 innbyggere (årsverk)": "arsverk",
+    "Brutto driftsutgifter til funksjon 338, 339, konsern (1000 kr)": "brutto_drift"
+}
+
+df["variabel_kort"] = df["statistikkvariabel"].map(korte_navn)
+
+df.head()
+
+# %%
+gyldige_kom = get_classification(131).get_codes().data["code"].tolist()
+df = df[df["kommunenr"].isin(gyldige_kom)]
+print(f"Antall rader: {len(df)}")
+
+
+# %%
+df_ny = df.drop(columns=["region", "statistikkvariabel"])
+df_ny.head()
+
+
+# %%
+df_bred = df.pivot_table(
+    index="kommunenr",
+    columns=["variabel_kort", "år"],
+    values="value",
+    aggfunc="first"
+)
+df_bred.head()
+
+# %%
+df_bred.columns = [
+    f"{variabel}_{aar}"
+    for variabel, aar in df_bred.columns
+]
+
+df_bred = df_bred.reset_index()
+
+df_bred.head()
+
+# %%
+brann = df_bred
+
+# %%
+brann.info()
+
+# %%
+kolonner = [
+    "boligbrann_2024",
+    "boligbrann_2025",
+    "brutto_drift_2024",
+    "brutto_drift_2025",
+    "piper_2024",
+    "piper_2025",
+    "piper_feiet_2024",
+    "piper_feiet_2025",
+    "utrykning_2024",
+    "utrykning_2025"
+]
+
+brann[kolonner] = brann[kolonner].astype("Int64")
+brann.info()
+
+# %%
+brann.head()
+
+
+# %%
+brann.to_parquet(
+    "../../data/brannvern_kommuner_2024_2025.parquet",
+    index=False
+)
+
+# %%
